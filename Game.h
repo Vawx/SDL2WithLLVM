@@ -1,5 +1,5 @@
 
-#ifdef OS_LINUX
+#ifdef __linux__
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 #else
