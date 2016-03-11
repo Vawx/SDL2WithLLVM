@@ -25,6 +25,7 @@ void InitGame( char* ScreenName, int Width, int Height )
                     LGame.ScreenHeight = Height;
                     InitBackground( );
                     InitPlayer( );
+                    LGame.Gravity = 4.25f;
                     LGame.bRunning = true;
                     MainLoop( );   
                 }
@@ -55,61 +56,91 @@ void MainLoop( )
     { 
         TimingBegin( );
         
+        // Gravity 
+        LGame.GravityTime += DeltaTime;
+        if( LGame.GravityTime >= LGame.ADD_GRAVITY_TIME )
+        {
+            LGame.Gravity += 0.35f;
+            if( LGame.Gravity > LGame.MAX_GRAVITY )
+            {
+                LGame.Gravity = LGame.MAX_GRAVITY;
+            }
+            LGame.GravityTime = 0.f;
+
+            LPlayer.Y += LGame.Gravity;
+            if( LPlayer.Y > LPlayer.BaseGround )
+            {
+                LPlayer.Y = LPlayer.BaseGround;
+            }            
+        }
+        else
+        {
+            LPlayer.Y = LPlayer.BaseGround;
+        }
+        
         // Render
         SDL_RenderClear( LGame.Renderer );
         for( size_t i = 0; i < LGame.Sprites.size( ); i++ )
         {
             SDL_Rect renderSrcQuad = { 0,0,0,0 };
+            SDL_Rect renderQuad = { 0,0,0,0 };
             
             // Game
             if( LGame.Sprites[ i ]->Texture->Type == TT_GROUND )
             {
-                LGame.Sprites[ i ]->SpriteLoc.X -= 1.f;
+                LGame.Sprites[ i ]->SpriteLoc.X -= 2.25f;
                 if( LGame.Sprites[ i ]->SpriteLoc.X + LGame.ScreenWidth <= 0 )
                 {
-                    LGame.Sprites[ i ]->SpriteLoc.X = LGame.ScreenWidth;
+                    LGame.Sprites[ i ]->SpriteLoc.X = float( LGame.ScreenWidth - 2 );
                 }
+                
+                renderQuad.x = LGame.Sprites[ i ]->SpriteLoc.X;
+                renderQuad.y = LGame.Sprites[ i ]->SpriteLoc.Y;
+                renderQuad.w = LGame.Sprites[ i ]->Width;
+                renderQuad.h = LGame.Sprites[ i ]->Height;
+                
+                 SDL_RenderCopy( LGame.Renderer, LGame.Sprites[ i ]->Texture->Image,  NULL, &renderQuad );
+            }
+            else if(  LGame.Sprites[ i ]->Texture->Type == TT_BACKGROUND )
+            {                
+                renderQuad.x = LGame.Sprites[ i ]->SpriteLoc.X;
+                renderQuad.y = LGame.Sprites[ i ]->SpriteLoc.Y;
+                renderQuad.w = LGame.Sprites[ i ]->Width;
+                renderQuad.h = LGame.Sprites[ i ]->Height;
+                
+                 SDL_RenderCopy( LGame.Renderer, LGame.Sprites[ i ]->Texture->Image,  NULL, &renderQuad );
             }
             else if( LGame.Sprites[ i ]->Texture->Type == TT_PLAYER )
             {
                 static int playerFrameCount;
                 playerFrameCount++;
               
-                if( playerFrameCount > 10 )
+                if( playerFrameCount > 8 )
                 {
                     playerFrameCount = 0;
-                    LPlayer.X += 32;
-                    if( LPlayer.X >= LPlayer.MaxX )
+                    LPlayer.CurrentXFrame += 32;
+                    if( LPlayer.CurrentXFrame >= LPlayer.MaxX )
                     {
-                        LPlayer.X = 0;
-                        LPlayer.Y += 32;
-                        if( LPlayer.Y >= LPlayer.MaxY )
+                        LPlayer.CurrentXFrame = 0;
+                        LPlayer.CurrentYFrame += 32;
+                        if( LPlayer.CurrentYFrame >= LPlayer.MaxY )
                         {
-                            LPlayer.Y = 0;
+                            LPlayer.CurrentYFrame = 0;
                         }
                     }
                 }
-                renderSrcQuad.x = LPlayer.X;
-                renderSrcQuad.y = LPlayer.Y;
+                
+                renderSrcQuad.x = LPlayer.CurrentXFrame;
+                renderSrcQuad.y = LPlayer.CurrentYFrame;
                 renderSrcQuad.w = 32;
                 renderSrcQuad.h = 32;
-            }
-
-
-            SDL_Rect  renderQuad = 
-            {   LGame.Sprites[ i ] ->SpriteLoc.X,
-                LGame.Sprites[ i ] ->SpriteLoc.Y,
-                LGame.Sprites[ i ] ->Width, 
-                LGame.Sprites[ i ] ->Height
-            };
-
-            if(  LGame.Sprites[ i ]->Texture->Type != TT_PLAYER  )
-            {
-                SDL_RenderCopy( LGame.Renderer, LGame.Sprites[ i ]->Texture->Image,  NULL, &renderQuad );
-            }
-            else
-            {
-                SDL_RenderCopyEx( LGame.Renderer, LGame.Sprites[ i ]->Texture->Image, &renderSrcQuad, &renderQuad, 0, NULL, SDL_FLIP_HORIZONTAL );
+                
+                renderQuad.x = LPlayer.X;
+                renderQuad.y = LPlayer.Y;
+                renderQuad.w = LGame.Sprites[ i ]->Width;
+                renderQuad.h = LGame.Sprites[ i ]->Height;
+                
+                 SDL_RenderCopyEx( LGame.Renderer, LGame.Sprites[ i ]->Texture->Image, &renderSrcQuad, &renderQuad, 0, NULL, SDL_FLIP_HORIZONTAL );
             }
        }
         SDL_RenderPresent( LGame.Renderer );
@@ -129,11 +160,14 @@ void MainLoop( )
                     case SDLK_ESCAPE:
                     LGame.bRunning = false;
                     break;
+                    case SDLK_SPACE:
+                    LGame.Gravity = -7.5f;
+                    break;
                 }
             }
         }
         
-        printf( "FPS: %f\n", TimingEnd( ) );
+        TimingEnd( );
     }
 
     for( size_t i = 0; i < LGame.Sprites.size( ); i++ )
@@ -158,10 +192,10 @@ void TimingCalculateFPS( )
     static const int NUM_SAMPLES = 10;
 	static float frameTimes[ NUM_SAMPLES ];
 	static int currentFrame = 0;
-	static float previousTicks = SDL_GetTicks( );
-	float currentTicks = SDL_GetTicks( );
+	static Uint16 previousTicks = SDL_GetTicks( );
+	Uint16 currentTicks = SDL_GetTicks( );
 
-	LTiming.m_FrameTime = currentTicks - previousTicks;
+    LTiming.m_FrameTime = float( currentTicks - previousTicks );
 	frameTimes[ currentFrame % NUM_SAMPLES ] = LTiming.m_FrameTime;
 	previousTicks = currentTicks;
 
@@ -182,7 +216,7 @@ void TimingCalculateFPS( )
 float TimingEnd( )
 {
     TimingCalculateFPS( );
-    float frameTicks = SDL_GetTicks( ) - LTiming.m_StartTicks;
+    Uint32 frameTicks = SDL_GetTicks( ) - LTiming.m_StartTicks;
 	if( 1000.f / LTiming.m_MaxFPS >= frameTicks )
 	{
 		SDL_Delay( int( 1000.f / LTiming.m_MaxFPS - frameTicks ) );
@@ -212,8 +246,8 @@ Sprite* CreateSprite( int X, int Y, int Width, int Height, char* Filepath, Textu
             resultTexture->Type = Type;
             
             Vector2 resultLoc;
-            resultLoc.X = X;
-            resultLoc.Y = Y;
+            resultLoc.X = float( X );
+            resultLoc.Y = float( Y );
             result->SpriteLoc = resultLoc;
             result->Width = Width;
             result->Height = Height;
@@ -246,7 +280,7 @@ void InitBackground( )
     startingLocation.Y = 482;
     for( int i = 0; i < 7; i++ )
     {
-        LGame.Sprites.push_back( CreateSprite( startingLocation.X, startingLocation.Y, 160, 224, trees, TT_BACKGROUND  ) );
+        LGame.Sprites.push_back( CreateSprite( int( startingLocation.X ), int( startingLocation.Y ), 160, 224, trees, TT_BACKGROUND  ) );
         startingLocation.X += 160;
     }
 
@@ -258,5 +292,8 @@ void InitPlayer( )
 {
     char* sheet = "./content/img/player/a1.png";    
     
+    LPlayer.BaseGround = 672;
+    LPlayer.X = 256;
+    LPlayer.Y = 672;
     LGame.Sprites.push_back( CreateSprite( 256, 672, 64, 64, sheet, TT_PLAYER ) );
 }

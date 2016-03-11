@@ -4,6 +4,6 @@
 int
 main( int argc, char* args[ ] )
 {
-    InitGame( "Linux Game", 1024, 768 );
+    InitGame( "Running", 1024, 768 );
     return 0;
 }
